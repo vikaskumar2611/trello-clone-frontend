@@ -100,6 +100,7 @@ export default function CardItem({ card, isDragOverlay = false }) {
                     {...listeners}
                     onClick={(e) => e.stopPropagation()}
                     className="absolute top-1.5 left-1.5 z-[2]
+                               p-1 -m-1 touch-none cursor-grab active:cursor-grabbing
                                opacity-0 group-hover:opacity-100
                                transition-opacity text-[#94a3b8]
                                hover:text-[#475569]"
