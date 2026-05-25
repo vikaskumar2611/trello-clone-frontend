@@ -71,7 +71,11 @@ export default function BoardBgPicker({ board, onClose }) {
     const panelRef = useRef(null);
 
     const updateBoardInList = useBoardStore((s) => s.updateBoardInList);
-    const { board: liveBoard, fetchBoard } = useCurrentBoardStore();
+    const {
+        board: liveBoard,
+        fetchBoard,
+        updateBoardInStore,
+    } = useCurrentBoardStore();
 
     // Close on outside click
     useEffect(() => {
@@ -95,6 +99,10 @@ export default function BoardBgPicker({ board, onClose }) {
                 background_color: color,
                 background_image: null,
             });
+            updateBoardInStore({
+                background_color: color,
+                background_image: null,
+            });
             // Update live board page background instantly
             await fetchBoard(board.id);
             toast.success("Background updated");
@@ -113,6 +121,10 @@ export default function BoardBgPicker({ board, onClose }) {
                 background_color: "#000000", // fallback color
             });
             updateBoardInList(board.id, {
+                background_image: imageUrl,
+                background_color: "#000000",
+            });
+            updateBoardInStore({
                 background_image: imageUrl,
                 background_color: "#000000",
             });
@@ -161,6 +173,10 @@ export default function BoardBgPicker({ board, onClose }) {
                     background_color: "#000000",
                 });
                 updateBoardInList(board.id, {
+                    background_image: dataUrl,
+                    background_color: "#000000",
+                });
+                updateBoardInStore({
                     background_image: dataUrl,
                     background_color: "#000000",
                 });

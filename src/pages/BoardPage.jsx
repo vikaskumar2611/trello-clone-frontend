@@ -74,7 +74,7 @@ export default function BoardPage({ theme, onToggleTheme }) {
         return (
             <div
                 className="h-screen flex items-center justify-center"
-                style={{ background: "var(--ui-board-overlay)" }}
+                style={{ backgroundColor: "var(--ui-board-overlay)" }}
             >
                 <Spinner size="lg" light />
             </div>
@@ -116,7 +116,7 @@ export default function BoardPage({ theme, onToggleTheme }) {
         >
             <div
                 className="pointer-events-none absolute inset-0"
-                style={{ background: "var(--ui-board-overlay)" }}
+                style={{ backgroundColor: "var(--ui-board-overlay)" }}
             />
 
             <div className="relative z-10 flex flex-col h-full">

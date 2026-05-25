@@ -10,11 +10,12 @@ export default function BoardCard({ board }) {
 
     const handleDelete = async (e) => {
         e.stopPropagation();
-        if (!confirm(`Archive board "${board.title}"?`)) return;
+        if (!confirm(`Delete board "${board.title}"? This cannot be undone.`))
+            return;
         try {
             await api.deleteBoard(board.id);
             removeBoard(board.id);
-            toast.success("Board archived");
+            toast.success("Board deleted");
         } catch {}
     };
 

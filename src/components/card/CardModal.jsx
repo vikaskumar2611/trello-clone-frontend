@@ -323,7 +323,7 @@ export default function CardModal({ cardId, onClose }) {
                     </div>
 
                     {/* Right sidebar */}
-                    <div className="w-36 flex-shrink-0 space-y-1">
+                    <div className="relative w-36 flex-shrink-0 space-y-1">
                         <p className="text-[10px] font-semibold text-[#44546f] uppercase mb-2">
                             Add to card
                         </p>
@@ -373,8 +373,9 @@ export default function CardModal({ cardId, onClose }) {
                         {/* Active section panel */}
                         {activeSection && (
                             <div
-                                className="mt-3 p-3 bg-white rounded-xl border border-gray-200
-                              shadow-lg w-56 absolute right-4"
+                                className="p-3 bg-white rounded-xl border border-gray-200
+                                                            shadow-lg w-64 absolute top-0 right-full mr-3
+                                                            max-h-[70vh] overflow-y-auto"
                             >
                                 <div className="flex items-center justify-between mb-3">
                                     <span className="text-xs font-semibold text-[#172b4d]">

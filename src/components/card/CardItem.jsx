@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
     MoreHorizontal,
     Archive,
+    Trash2,
     X,
     CheckCircle2,
     Circle,
@@ -13,6 +15,7 @@ import CardLabels from "./CardLabels.jsx";
 import CardBadges from "./CardBadges.jsx";
 import CardModal from "./CardModal.jsx";
 import Avatar from "../common/Avatar.jsx";
+import ConfirmDialog from "../common/ConfirmDialog.jsx";
 import { useCurrentBoardStore } from "../../store/currentBoardStore.js";
 import * as api from "../../services/api.js";
 import toast from "react-hot-toast";
@@ -22,6 +25,9 @@ export default function CardItem({ card, isDragOverlay = false }) {
     const [showMenu, setShowMenu] = useState(false);
     const [isArchiving, setIsArchiving] = useState(false);
     const [isMarking, setIsMarking] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+    const menuButtonRef = useRef(null);
 
     const { removeCard, updateCardInStore } = useCurrentBoardStore();
 
@@ -44,6 +50,58 @@ export default function CardItem({ card, isDragOverlay = false }) {
     };
 
     const isDone = card.due_completed === true;
+
+    // Recalculate position on scroll/resize while menu is open
+    useEffect(() => {
+        if (!showMenu) return;
+
+        const updatePos = () => {
+            if (!menuButtonRef.current) return;
+            const rect = menuButtonRef.current.getBoundingClientRect();
+            // Try to place dropdown to the left if it would go off screen
+            const dropdownWidth = 170;
+            const spaceOnRight = window.innerWidth - rect.right;
+            const left =
+                spaceOnRight >= dropdownWidth
+                    ? rect.left // align left edge of button
+                    : rect.right - dropdownWidth; // align right edge
+
+            setMenuPos({
+                top: rect.bottom + 6,
+                left: Math.max(8, left),
+            });
+        };
+
+        updatePos();
+
+        // Close on scroll so it doesn't float away
+        const handleScroll = () => setShowMenu(false);
+        window.addEventListener("scroll", handleScroll, true);
+        window.addEventListener("resize", updatePos);
+
+        return () => {
+            window.removeEventListener("scroll", handleScroll, true);
+            window.removeEventListener("resize", updatePos);
+        };
+    }, [showMenu]);
+
+    const handleOpenMenu = (e) => {
+        e.stopPropagation();
+        if (!menuButtonRef.current) return;
+        const rect = menuButtonRef.current.getBoundingClientRect();
+        const dropdownWidth = 170;
+        const spaceOnRight = window.innerWidth - rect.right;
+        const left =
+            spaceOnRight >= dropdownWidth
+                ? rect.left
+                : rect.right - dropdownWidth;
+
+        setMenuPos({
+            top: rect.bottom + 6,
+            left: Math.max(8, left),
+        });
+        setShowMenu((v) => !v);
+    };
 
     const handleMarkDone = async (e) => {
         e.stopPropagation();
@@ -74,6 +132,20 @@ export default function CardItem({ card, isDragOverlay = false }) {
         } catch {
             toast.error("Failed to archive card");
             setIsArchiving(false);
+        }
+    };
+
+    const handleDeletePermanent = async () => {
+        setIsArchiving(true);
+        try {
+            await api.deleteCardPermanently(card.id);
+            removeCard(card.id);
+            toast.success("Card deleted");
+        } catch {
+            toast.error("Failed to delete card");
+        } finally {
+            setIsArchiving(false);
+            setShowDeleteConfirm(false);
         }
     };
 
@@ -109,7 +181,7 @@ export default function CardItem({ card, isDragOverlay = false }) {
                     <GripVertical size={14} />
                 </button>
 
-                {/* Cover color / image */}
+                {/* Cover */}
                 {(card.cover_color || card.cover_image) && (
                     <div
                         className="relative w-full h-8 flex-shrink-0 z-[1]"
@@ -124,9 +196,9 @@ export default function CardItem({ card, isDragOverlay = false }) {
                     />
                 )}
 
-                {/* Card body - relative + z-index so it sits above drag handle */}
+                {/* Card body */}
                 <div className="relative z-[1] p-2.5">
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2 pl-5">
                         <button
                             onClick={handleMarkDone}
                             disabled={isMarking}
@@ -145,10 +217,7 @@ export default function CardItem({ card, isDragOverlay = false }) {
                         </button>
 
                         <div className="min-w-0 flex-1">
-                            {/* Labels */}
                             <CardLabels labels={card.labels} />
-
-                            {/* Title */}
                             <p
                                 className={`text-sm text-[#172b4d] leading-snug
                                    break-words pr-7
@@ -159,7 +228,6 @@ export default function CardItem({ card, isDragOverlay = false }) {
                         </div>
                     </div>
 
-                    {/* Done indicator */}
                     {isDone && (
                         <div className="flex items-center gap-1 mt-1">
                             <CheckCircle2
@@ -172,10 +240,8 @@ export default function CardItem({ card, isDragOverlay = false }) {
                         </div>
                     )}
 
-                    {/* Badges */}
                     <CardBadges card={card} />
 
-                    {/* Members - always last, always below badges */}
                     {card.members?.length > 0 && (
                         <div className="flex items-center justify-end mt-2 gap-0.5">
                             {card.members.slice(0, 3).map((m) => (
@@ -190,17 +256,15 @@ export default function CardItem({ card, isDragOverlay = false }) {
                     )}
                 </div>
 
-                {/* ── Menu button - z-[2] so it's ABOVE the drag handle ── */}
+                {/* Menu button - just the trigger, no dropdown here */}
                 <div
                     className="absolute top-1.5 right-1.5 z-[3]
                                 opacity-0 group-hover:opacity-100
                                 transition-opacity"
                 >
                     <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenu((v) => !v);
-                        }}
+                        ref={menuButtonRef}
+                        onClick={handleOpenMenu}
                         onPointerDown={(e) => e.stopPropagation()}
                         className="p-1 bg-white/90 hover:bg-gray-100
                                    rounded-lg shadow-sm text-[#626f86]
@@ -208,105 +272,130 @@ export default function CardItem({ card, isDragOverlay = false }) {
                     >
                         <MoreHorizontal size={13} />
                     </button>
+                </div>
+            </div>
 
-                    {showMenu && (
-                        <>
-                            {/* Backdrop */}
-                            <div
-                                className="fixed inset-0 z-[40]"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowMenu(false);
-                                }}
-                            />
-                            {/* Dropdown */}
-                            <div
-                                className="absolute top-full right-0 mt-1
-                                            bg-white rounded-xl shadow-xl
-                                            border border-gray-200 z-[50]
-                                            min-w-[170px] py-1 overflow-hidden"
-                            >
-                                {/* Header */}
-                                <div
-                                    className="flex items-center justify-between
-                                                px-3 py-2 border-b border-gray-100"
-                                >
-                                    <span
-                                        className="text-[11px] font-semibold
-                                                     text-[#44546f]"
-                                    >
-                                        Card actions
-                                    </span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowMenu(false);
-                                        }}
-                                        className="p-0.5 hover:bg-gray-100 rounded"
-                                    >
-                                        <X
-                                            size={12}
-                                            className="text-[#626f86]"
-                                        />
-                                    </button>
-                                </div>
+            {/* Dropdown in portal - completely outside overflow containers */}
+            {showMenu &&
+                createPortal(
+                    <>
+                        {/* Backdrop */}
+                        <div
+                            className="fixed inset-0 z-[9998]"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowMenu(false);
+                            }}
+                        />
 
-                                {/* Open card */}
+                        {/* Dropdown */}
+                        <div
+                            style={{
+                                position: "fixed",
+                                top: `${menuPos.top}px`,
+                                left: `${menuPos.left}px`,
+                                zIndex: 9999,
+                            }}
+                            className="bg-white rounded-xl shadow-xl
+                                       border border-gray-200
+                                       min-w-[170px] py-1 overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+                                <span className="text-[11px] font-semibold text-[#44546f]">
+                                    Card actions
+                                </span>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setShowMenu(false);
-                                        setShowModal(true);
                                     }}
-                                    className="w-full flex items-center gap-2.5
-                                               px-3 py-2.5 text-xs text-[#172b4d]
-                                               hover:bg-gray-50 transition-colors"
+                                    className="p-0.5 hover:bg-gray-100 rounded"
                                 >
-                                    Open card
-                                </button>
-
-                                {/* Mark done / active */}
-                                <button
-                                    onClick={handleMarkDone}
-                                    disabled={isMarking}
-                                    className={`w-full flex items-center gap-2.5
-                                                px-3 py-2.5 text-xs transition-colors
-                                                ${
-                                                    isDone
-                                                        ? "text-[#172b4d] hover:bg-gray-50"
-                                                        : "text-green-600 hover:bg-green-50"
-                                                }`}
-                                >
-                                    {isDone ? (
-                                        <>
-                                            <Circle size={13} />
-                                            Mark as active
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle2 size={13} />
-                                            Mark as done
-                                        </>
-                                    )}
-                                </button>
-
-                                {/* Archive */}
-                                <button
-                                    onClick={handleArchive}
-                                    disabled={isArchiving}
-                                    className="w-full flex items-center gap-2.5
-                                               px-3 py-2.5 text-xs text-[#172b4d]
-                                               hover:bg-red-50 hover:text-red-600
-                                               transition-colors"
-                                >
-                                    <Archive size={13} />
-                                    Archive card
+                                    <X size={12} className="text-[#626f86]" />
                                 </button>
                             </div>
-                        </>
-                    )}
-                </div>
-            </div>
+
+                            {/* Open card */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowMenu(false);
+                                    setShowModal(true);
+                                }}
+                                className="w-full flex items-center gap-2.5
+                                           px-3 py-2.5 text-xs text-[#172b4d]
+                                           hover:bg-gray-50 transition-colors"
+                            >
+                                Open card
+                            </button>
+
+                            {/* Mark done / active */}
+                            <button
+                                onClick={handleMarkDone}
+                                disabled={isMarking}
+                                className={`w-full flex items-center gap-2.5
+                                            px-3 py-2.5 text-xs transition-colors
+                                            ${
+                                                isDone
+                                                    ? "text-[#172b4d] hover:bg-gray-50"
+                                                    : "text-green-600 hover:bg-green-50"
+                                            }`}
+                            >
+                                {isDone ? (
+                                    <>
+                                        <Circle size={13} />
+                                        Mark as active
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 size={13} />
+                                        Mark as done
+                                    </>
+                                )}
+                            </button>
+
+                            {/* Archive */}
+                            <button
+                                onClick={handleArchive}
+                                disabled={isArchiving}
+                                className="w-full flex items-center gap-2.5
+                                           px-3 py-2.5 text-xs text-[#172b4d]
+                                           hover:bg-red-50 hover:text-red-600
+                                           transition-colors"
+                            >
+                                <Archive size={13} />
+                                Archive card
+                            </button>
+
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowMenu(false);
+                                    setShowDeleteConfirm(true);
+                                }}
+                                disabled={isArchiving}
+                                className="w-full flex items-center gap-2.5
+                                           px-3 py-2.5 text-xs text-red-600
+                                           hover:bg-red-50 transition-colors"
+                            >
+                                <Trash2 size={13} />
+                                Delete card
+                            </button>
+                        </div>
+                    </>,
+                    document.body,
+                )}
+
+            <ConfirmDialog
+                isOpen={showDeleteConfirm}
+                title="Delete card permanently?"
+                message={`This will permanently delete "${card.title}".`}
+                confirmText="Delete"
+                onConfirm={handleDeletePermanent}
+                onCancel={() => setShowDeleteConfirm(false)}
+                isLoading={isArchiving}
+            />
 
             {showModal && (
                 <CardModal

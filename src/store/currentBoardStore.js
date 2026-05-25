@@ -40,6 +40,11 @@ export const useCurrentBoardStore = create(
                 s.board.lists.push({ ...list, cards: [] });
             }),
 
+        updateBoardInStore: (updates) =>
+            set((s) => {
+                if (s.board) Object.assign(s.board, updates);
+            }),
+
         updateListInStore: (listId, updates) =>
             set((s) => {
                 const list = s.board.lists.find((l) => l.id === listId);

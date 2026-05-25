@@ -131,7 +131,9 @@ export default function BoardContent({ board, filteredCardIds }) {
             let destListId = null;
 
             // over could be a list itself
-            if (findListById(over.id)) {
+            if (over.data?.current?.type === "list") {
+                destListId = over.data.current.listId || over.id;
+            } else if (findListById(over.id)) {
                 destListId = over.id;
             } else {
                 // over is a card - find which list it belongs to
@@ -207,39 +209,69 @@ export default function BoardContent({ board, filteredCardIds }) {
 
         // ── Finalize Card Move ────────────────────────────────
         if (activeType === "card") {
-            // Card has already been moved visually in onDragOver
-            // Now we just need to persist the final position to the backend
+            const sourceList = findListByCardId(active.id);
+            if (!sourceList) return;
 
-            // Find where the card is NOW (after visual move)
-            const currentList = findListByCardId(active.id);
-            if (!currentList) return;
+            let destListId = null;
+            if (over.data?.current?.type === "list") {
+                destListId = over.data.current.listId || over.id;
+            } else if (findListById(over.id)) {
+                destListId = over.id;
+            } else {
+                const overList = findListByCardId(over.id);
+                if (overList) destListId = overList.id;
+            }
 
-            const cardIdx = currentList.cards.findIndex(
+            if (!destListId) return;
+
+            const destList = findListById(destListId);
+            if (!destList) return;
+
+            const destCards = destList.cards || [];
+            const destCardsWithoutActive = destCards.filter(
+                (c) => c.id !== active.id,
+            );
+            const overIndexOriginal = destCards.findIndex(
+                (c) => c.id === over.id,
+            );
+            const overCardIdx = destCardsWithoutActive.findIndex(
+                (c) => c.id === over.id,
+            );
+
+            const sourceIndex = sourceList.cards.findIndex(
                 (c) => c.id === active.id,
             );
-            const card = currentList.cards[cardIdx];
-            const prevCard = currentList.cards[cardIdx - 1];
-            const nextCard = currentList.cards[cardIdx + 1];
+            const sameList = destListId === sourceList.id;
 
-            // Recalculate clean position based on actual neighbors
+            let targetIndex;
+            if (overCardIdx === -1) {
+                targetIndex = destCardsWithoutActive.length;
+            } else if (sameList && sourceIndex < overIndexOriginal) {
+                targetIndex = overCardIdx + 1;
+            } else {
+                targetIndex = overCardIdx;
+            }
+
+            const prevCard = destCardsWithoutActive[targetIndex - 1];
+            const nextCard = destCardsWithoutActive[targetIndex];
             const newPos = getPositionBetween(
                 prevCard?.position ?? null,
                 nextCard?.position ?? null,
             );
 
-            // Only update if position actually needs to change
-            if (newPos !== card.position) {
-                moveCardLocal(
-                    active.id,
-                    currentList.id,
-                    currentList.id,
-                    newPos,
-                );
+            const activeCard = sourceList.cards.find((c) => c.id === active.id);
+            if (!activeCard) return;
+
+            if (
+                destListId !== sourceList.id ||
+                newPos !== activeCard.position
+            ) {
+                moveCardLocal(active.id, sourceList.id, destListId, newPos);
             }
 
             try {
                 await api.moveCard(active.id, {
-                    list_id: currentList.id,
+                    list_id: destListId,
                     position: newPos,
                 });
             } catch {

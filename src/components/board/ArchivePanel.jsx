@@ -1,9 +1,18 @@
 import { useState, useEffect } from "react";
-import { Archive, RotateCcw, X, Search, Layers, Square } from "lucide-react";
+import {
+    Archive,
+    RotateCcw,
+    X,
+    Search,
+    Layers,
+    Square,
+    Trash2,
+} from "lucide-react";
 import * as api from "../../services/api.js";
 import { useCurrentBoardStore } from "../../store/currentBoardStore.js";
 import Spinner from "../common/Spinner.jsx";
 import toast from "react-hot-toast";
+import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 export default function ArchivePanel({ boardId, onClose }) {
     const [activeTab, setActiveTab] = useState("cards"); // 'cards' | 'lists'
@@ -12,6 +21,8 @@ export default function ArchivePanel({ boardId, onClose }) {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [restoringId, setRestoringId] = useState(null); // track which item is restoring
+    const [deleteTarget, setDeleteTarget] = useState(null); // { type, item }
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const { fetchBoard } = useCurrentBoardStore();
 
@@ -70,20 +81,31 @@ export default function ArchivePanel({ boardId, onClose }) {
     };
 
     const handleDeleteCardPermanently = async (card) => {
-        if (
-            !confirm(
-                `Permanently delete "${card.title}"? This cannot be undone.`,
-            )
-        )
-            return;
+        setIsDeleting(true);
         try {
-            // Hard delete - directly via query would need a new endpoint
-            // For now we just remove from UI and keep in DB as archived
-            // (Trello also doesn't permanently delete easily)
-            toast("Permanent delete coming soon - card remains archived", {
-                icon: "ℹ️",
-            });
-        } catch {}
+            await api.deleteCardPermanently(card.id);
+            setArchivedCards((prev) => prev.filter((c) => c.id !== card.id));
+            toast.success("Card deleted");
+        } catch {
+            toast.error("Failed to delete card");
+        } finally {
+            setIsDeleting(false);
+            setDeleteTarget(null);
+        }
+    };
+
+    const handleDeleteListPermanently = async (list) => {
+        setIsDeleting(true);
+        try {
+            await api.deleteListPermanently(list.id);
+            setArchivedLists((prev) => prev.filter((l) => l.id !== list.id));
+            toast.success("List deleted");
+        } catch {
+            toast.error("Failed to delete list");
+        } finally {
+            setIsDeleting(false);
+            setDeleteTarget(null);
+        }
     };
 
     // Filter by search query
@@ -104,62 +126,66 @@ export default function ArchivePanel({ boardId, onClose }) {
     };
 
     return (
-        // Panel slides in from the right
-        <div className="fixed inset-0 z-40 flex justify-end">
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <>
+            {/* Panel slides in from the right */}
+            <div className="fixed inset-0 z-40 flex justify-end">
+                {/* Backdrop */}
+                <div
+                    className="absolute inset-0 bg-black/40"
+                    onClick={onClose}
+                />
 
-            {/* Panel */}
-            <div
-                className="relative bg-[#f1f2f4] w-full max-w-sm
+                {/* Panel */}
+                <div
+                    className="relative bg-[#f1f2f4] w-full max-w-sm
                    h-full flex flex-col shadow-2xl
                    animate-slide-in-right overflow-hidden"
-            >
-                {/* Header */}
-                <div
-                    className="flex items-center gap-3 px-4 py-3.5
-                        bg-white border-b border-gray-200 flex-shrink-0"
                 >
-                    <Archive size={18} className="text-[#44546f]" />
-                    <h2 className="text-sm font-semibold text-[#172b4d] flex-1">
-                        Archive
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg
+                    {/* Header */}
+                    <div
+                        className="flex items-center gap-3 px-4 py-3.5
+                        bg-white border-b border-gray-200 flex-shrink-0"
+                    >
+                        <Archive size={18} className="text-[#44546f]" />
+                        <h2 className="text-sm font-semibold text-[#172b4d] flex-1">
+                            Archive
+                        </h2>
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg
                        text-[#626f86] hover:text-[#172b4d]
                        transition-colors"
-                    >
-                        <X size={16} />
-                    </button>
-                </div>
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
 
-                {/* Search */}
-                <div className="px-3 pt-3 pb-2 flex-shrink-0">
-                    <div className="relative">
-                        <Search
-                            size={13}
-                            className="absolute left-2.5 top-1/2 -translate-y-1/2
+                    {/* Search */}
+                    <div className="px-3 pt-3 pb-2 flex-shrink-0">
+                        <div className="relative">
+                            <Search
+                                size={13}
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2
                          text-[#8590a2] pointer-events-none"
-                        />
-                        <input
-                            type="text"
-                            placeholder="Search archived items..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 text-xs text-[#172b4d]
+                            />
+                            <input
+                                type="text"
+                                placeholder="Search archived items..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-8 pr-3 py-2 text-xs text-[#172b4d]
                          bg-white border border-gray-200 rounded-lg
                          focus:outline-none focus:border-[#0052CC]
                          transition-colors"
-                        />
+                            />
+                        </div>
                     </div>
-                </div>
 
-                {/* Tabs */}
-                <div className="flex px-3 gap-1 flex-shrink-0 mb-2">
-                    <button
-                        onClick={() => setActiveTab("cards")}
-                        className={`flex-1 flex items-center justify-center gap-1.5
+                    {/* Tabs */}
+                    <div className="flex px-3 gap-1 flex-shrink-0 mb-2">
+                        <button
+                            onClick={() => setActiveTab("cards")}
+                            className={`flex-1 flex items-center justify-center gap-1.5
                         py-2 rounded-lg text-xs font-semibold
                         transition-colors
                         ${
@@ -167,26 +193,26 @@ export default function ArchivePanel({ boardId, onClose }) {
                                 ? "bg-[#0052CC] text-white"
                                 : "bg-white text-[#44546f] hover:bg-gray-100"
                         }`}
-                    >
-                        <Square size={12} />
-                        Cards
-                        {archivedCards.length > 0 && (
-                            <span
-                                className={`px-1.5 py-0.5 rounded-full text-[10px]
+                        >
+                            <Square size={12} />
+                            Cards
+                            {archivedCards.length > 0 && (
+                                <span
+                                    className={`px-1.5 py-0.5 rounded-full text-[10px]
                                 font-bold
                                 ${
                                     activeTab === "cards"
                                         ? "bg-white/20 text-white"
                                         : "bg-[#091e420f] text-[#626f86]"
                                 }`}
-                            >
-                                {archivedCards.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("lists")}
-                        className={`flex-1 flex items-center justify-center gap-1.5
+                                >
+                                    {archivedCards.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("lists")}
+                            className={`flex-1 flex items-center justify-center gap-1.5
                         py-2 rounded-lg text-xs font-semibold
                         transition-colors
                         ${
@@ -194,187 +220,257 @@ export default function ArchivePanel({ boardId, onClose }) {
                                 ? "bg-[#0052CC] text-white"
                                 : "bg-white text-[#44546f] hover:bg-gray-100"
                         }`}
-                    >
-                        <Layers size={12} />
-                        Lists
-                        {archivedLists.length > 0 && (
-                            <span
-                                className={`px-1.5 py-0.5 rounded-full text-[10px]
+                        >
+                            <Layers size={12} />
+                            Lists
+                            {archivedLists.length > 0 && (
+                                <span
+                                    className={`px-1.5 py-0.5 rounded-full text-[10px]
                                 font-bold
                                 ${
                                     activeTab === "lists"
                                         ? "bg-white/20 text-white"
                                         : "bg-[#091e420f] text-[#626f86]"
                                 }`}
-                            >
-                                {archivedLists.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
+                                >
+                                    {archivedLists.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
 
-                {/* Content - scrollable */}
-                <div className="flex-1 overflow-y-auto px-3 pb-4">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-32">
-                            <Spinner />
-                        </div>
-                    ) : activeTab === "cards" ? (
-                        // ── Archived Cards ────────────────────────────────
-                        filteredCards.length === 0 ? (
-                            <EmptyState
-                                icon={
-                                    <Square size={32} className="opacity-30" />
-                                }
-                                text={
-                                    searchQuery
-                                        ? "No archived cards match your search"
-                                        : "No archived cards"
-                                }
-                            />
-                        ) : (
-                            <div className="space-y-2">
-                                {filteredCards.map((card) => (
-                                    <div
-                                        key={card.id}
-                                        className="bg-white rounded-xl p-3 shadow-sm
+                    {/* Content - scrollable */}
+                    <div className="flex-1 overflow-y-auto px-3 pb-4">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center h-32">
+                                <Spinner />
+                            </div>
+                        ) : activeTab === "cards" ? (
+                            // ── Archived Cards ────────────────────────────────
+                            filteredCards.length === 0 ? (
+                                <EmptyState
+                                    icon={
+                                        <Square
+                                            size={32}
+                                            className="opacity-30"
+                                        />
+                                    }
+                                    text={
+                                        searchQuery
+                                            ? "No archived cards match your search"
+                                            : "No archived cards"
+                                    }
+                                />
+                            ) : (
+                                <div className="space-y-2">
+                                    {filteredCards.map((card) => (
+                                        <div
+                                            key={card.id}
+                                            className="bg-white rounded-xl p-3 shadow-sm
                                border border-gray-100"
-                                    >
-                                        {/* Cover color strip */}
-                                        {card.cover_color && (
-                                            <div
-                                                className="w-full h-6 rounded-lg mb-2"
-                                                style={{
-                                                    backgroundColor:
-                                                        card.cover_color,
-                                                }}
-                                            />
-                                        )}
-
-                                        <p
-                                            className="text-xs font-semibold text-[#172b4d]
-                                  leading-snug mb-1"
                                         >
-                                            {card.title}
-                                        </p>
+                                            {/* Cover color strip */}
+                                            {card.cover_color && (
+                                                <div
+                                                    className="w-full h-6 rounded-lg mb-2"
+                                                    style={{
+                                                        backgroundColor:
+                                                            card.cover_color,
+                                                    }}
+                                                />
+                                            )}
 
-                                        <div className="flex items-center gap-1 mb-2.5">
-                                            <span className="text-[10px] text-[#8590a2]">
-                                                in
-                                            </span>
-                                            <span
-                                                className="text-[10px] font-medium
+                                            <p
+                                                className="text-xs font-semibold text-[#172b4d]
+                                  leading-snug mb-1"
+                                            >
+                                                {card.title}
+                                            </p>
+
+                                            <div className="flex items-center gap-1 mb-2.5">
+                                                <span className="text-[10px] text-[#8590a2]">
+                                                    in
+                                                </span>
+                                                <span
+                                                    className="text-[10px] font-medium
                                        text-[#626f86] bg-[#091e420f]
                                        px-1.5 py-0.5 rounded"
-                                            >
-                                                {card.list_title}
-                                            </span>
-                                            <span className="text-[10px] text-[#8590a2] ml-auto">
-                                                {formatDate(card.updated_at)}
-                                            </span>
-                                        </div>
+                                                >
+                                                    {card.list_title}
+                                                </span>
+                                                <span className="text-[10px] text-[#8590a2] ml-auto">
+                                                    {formatDate(
+                                                        card.updated_at,
+                                                    )}
+                                                </span>
+                                            </div>
 
-                                        <div className="flex gap-1.5">
-                                            <button
-                                                onClick={() =>
-                                                    handleRestoreCard(card)
-                                                }
-                                                disabled={
-                                                    restoringId === card.id
-                                                }
-                                                className="flex-1 flex items-center justify-center
+                                            <div className="flex gap-1.5">
+                                                <button
+                                                    onClick={() =>
+                                                        handleRestoreCard(card)
+                                                    }
+                                                    disabled={
+                                                        restoringId === card.id
+                                                    }
+                                                    className="flex-1 flex items-center justify-center
                                    gap-1.5 py-1.5 bg-[#0052CC]
                                    hover:bg-[#0065FF] text-white
                                    text-[11px] font-semibold rounded-lg
                                    disabled:opacity-50 transition-colors"
-                                            >
-                                                {restoringId === card.id ? (
-                                                    <Spinner size="sm" light />
-                                                ) : (
-                                                    <RotateCcw size={11} />
-                                                )}
-                                                Restore
-                                            </button>
+                                                >
+                                                    {restoringId === card.id ? (
+                                                        <Spinner
+                                                            size="sm"
+                                                            light
+                                                        />
+                                                    ) : (
+                                                        <RotateCcw size={11} />
+                                                    )}
+                                                    Restore
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        setDeleteTarget({
+                                                            type: "card",
+                                                            item: card,
+                                                        })
+                                                    }
+                                                    className="flex-1 flex items-center justify-center
+                                   gap-1.5 py-1.5 bg-white border border-red-200
+                                   hover:bg-red-50 text-red-600
+                                   text-[11px] font-semibold rounded-lg
+                                   transition-colors"
+                                                >
+                                                    <Trash2 size={11} />
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )
-                    ) : // ── Archived Lists ────────────────────────────────
-                    filteredLists.length === 0 ? (
-                        <EmptyState
-                            icon={<Layers size={32} className="opacity-30" />}
-                            text={
-                                searchQuery
-                                    ? "No archived lists match your search"
-                                    : "No archived lists"
-                            }
-                        />
-                    ) : (
-                        <div className="space-y-2">
-                            {filteredLists.map((list) => (
-                                <div
-                                    key={list.id}
-                                    className="bg-white rounded-xl p-3 shadow-sm
+                                    ))}
+                                </div>
+                            )
+                        ) : // ── Archived Lists ────────────────────────────────
+                        filteredLists.length === 0 ? (
+                            <EmptyState
+                                icon={
+                                    <Layers size={32} className="opacity-30" />
+                                }
+                                text={
+                                    searchQuery
+                                        ? "No archived lists match your search"
+                                        : "No archived lists"
+                                }
+                            />
+                        ) : (
+                            <div className="space-y-2">
+                                {filteredLists.map((list) => (
+                                    <div
+                                        key={list.id}
+                                        className="bg-white rounded-xl p-3 shadow-sm
                                border border-gray-100"
-                                >
-                                    <p className="text-xs font-semibold text-[#172b4d] mb-1">
-                                        {list.title}
-                                    </p>
+                                    >
+                                        <p className="text-xs font-semibold text-[#172b4d] mb-1">
+                                            {list.title}
+                                        </p>
 
-                                    <div className="flex items-center gap-2 mb-2.5">
-                                        <span className="text-[10px] text-[#8590a2]">
-                                            {list.card_count} card
-                                            {list.card_count !== "1"
-                                                ? "s"
-                                                : ""}{" "}
-                                            will be restored
-                                        </span>
-                                        <span className="text-[10px] text-[#8590a2] ml-auto">
-                                            {formatDate(list.updated_at)}
-                                        </span>
-                                    </div>
+                                        <div className="flex items-center gap-2 mb-2.5">
+                                            <span className="text-[10px] text-[#8590a2]">
+                                                {list.card_count} card
+                                                {list.card_count !== "1"
+                                                    ? "s"
+                                                    : ""}{" "}
+                                                will be restored
+                                            </span>
+                                            <span className="text-[10px] text-[#8590a2] ml-auto">
+                                                {formatDate(list.updated_at)}
+                                            </span>
+                                        </div>
 
-                                    <button
-                                        onClick={() => handleRestoreList(list)}
-                                        disabled={restoringId === list.id}
-                                        className="w-full flex items-center justify-center
+                                        <button
+                                            onClick={() =>
+                                                handleRestoreList(list)
+                                            }
+                                            disabled={restoringId === list.id}
+                                            className="w-full flex items-center justify-center
                                  gap-1.5 py-1.5 bg-[#0052CC]
                                  hover:bg-[#0065FF] text-white
                                  text-[11px] font-semibold rounded-lg
                                  disabled:opacity-50 transition-colors"
-                                    >
-                                        {restoringId === list.id ? (
-                                            <Spinner size="sm" light />
-                                        ) : (
-                                            <RotateCcw size={11} />
-                                        )}
-                                        Restore List & Cards
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                                        >
+                                            {restoringId === list.id ? (
+                                                <Spinner size="sm" light />
+                                            ) : (
+                                                <RotateCcw size={11} />
+                                            )}
+                                            Restore List & Cards
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                setDeleteTarget({
+                                                    type: "list",
+                                                    item: list,
+                                                })
+                                            }
+                                            className="w-full flex items-center justify-center
+                                 gap-1.5 py-1.5 mt-1.5 bg-white border border-red-200
+                                 hover:bg-red-50 text-red-600
+                                 text-[11px] font-semibold rounded-lg
+                                 transition-colors"
+                                        >
+                                            <Trash2 size={11} />
+                                            Delete List
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-                {/* Footer - refresh button */}
-                <div
-                    className="px-3 py-2.5 border-t border-gray-200
+                    {/* Footer - refresh button */}
+                    <div
+                        className="px-3 py-2.5 border-t border-gray-200
                         bg-white flex-shrink-0"
-                >
-                    <button
-                        onClick={fetchArchived}
-                        disabled={isLoading}
-                        className="w-full py-2 text-xs font-medium text-[#44546f]
+                    >
+                        <button
+                            onClick={fetchArchived}
+                            disabled={isLoading}
+                            className="w-full py-2 text-xs font-medium text-[#44546f]
                        hover:bg-[#091e420f] rounded-lg transition-colors
                        flex items-center justify-center gap-1.5"
-                    >
-                        <RotateCcw size={12} />
-                        Refresh
-                    </button>
+                        >
+                            <RotateCcw size={12} />
+                            Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <ConfirmDialog
+                isOpen={!!deleteTarget}
+                title={
+                    deleteTarget?.type === "list"
+                        ? "Delete list permanently?"
+                        : "Delete card permanently?"
+                }
+                message={
+                    deleteTarget?.type === "list"
+                        ? `This will permanently delete "${deleteTarget.item.title}" and all its cards.`
+                        : `This will permanently delete "${deleteTarget.item.title}".`
+                }
+                confirmText="Delete"
+                onConfirm={() => {
+                    if (!deleteTarget) return;
+                    if (deleteTarget.type === "list") {
+                        handleDeleteListPermanently(deleteTarget.item);
+                    } else {
+                        handleDeleteCardPermanently(deleteTarget.item);
+                    }
+                }}
+                onCancel={() => setDeleteTarget(null)}
+                isLoading={isDeleting}
+            />
+        </>
     );
 }
 

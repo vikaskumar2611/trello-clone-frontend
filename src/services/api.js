@@ -13,6 +13,8 @@ export const createList = (boardId, data) =>
     axiosInstance.post(`/lists/${boardId}/lists`, data);
 export const updateList = (id, data) => axiosInstance.put(`/lists/${id}`, data);
 export const deleteList = (id) => axiosInstance.delete(`/lists/${id}`);
+export const deleteListPermanently = (id) =>
+    axiosInstance.delete(`/lists/${id}/permanent`);
 export const moveList = (id, data) =>
     axiosInstance.put(`/lists/${id}/move`, data);
 
@@ -22,6 +24,8 @@ export const createCard = (listId, data) =>
 export const getCardById = (id) => axiosInstance.get(`/cards/${id}`);
 export const updateCard = (id, data) => axiosInstance.put(`/cards/${id}`, data);
 export const deleteCard = (id) => axiosInstance.delete(`/cards/${id}`);
+export const deleteCardPermanently = (id) =>
+    axiosInstance.delete(`/cards/${id}/permanent`);
 export const moveCard = (id, data) =>
     axiosInstance.put(`/cards/${id}/move`, data);
 

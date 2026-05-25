@@ -29,7 +29,7 @@ export default function ListColumn({ list, filteredCardIds }) {
     // Also make this a droppable so cards can be dropped
     // onto the list itself (not just onto other cards)
     const { setNodeRef: setDroppableRef, isOver } = useDroppable({
-        id: `droppable-${list.id}`,
+        id: list.id,
         data: { type: "list", listId: list.id },
     });
 

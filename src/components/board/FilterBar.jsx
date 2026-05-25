@@ -19,6 +19,9 @@ export default function FilterBar({
     const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0].hex);
     const [isCreatingLabel, setIsCreatingLabel] = useState(false);
 
+    const labelRef = useRef(null);
+    const memberRef = useRef(null);
+
     const addLabelToStore = useCurrentBoardStore((s) => s.addLabelToStore);
 
     const toggleLabel = (labelId) => {
@@ -64,13 +67,25 @@ export default function FilterBar({
         }
     };
 
+    useEffect(() => {
+        if (!showLabelDropdown && !showMemberDropdown) return;
+        const handler = (e) => {
+            if (labelRef.current?.contains(e.target)) return;
+            if (memberRef.current?.contains(e.target)) return;
+            setShowLabelDropdown(false);
+            setShowMemberDropdown(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [showLabelDropdown, showMemberDropdown]);
+
     return (
         <div
             className="relative z-10 flex items-center gap-2 px-4 py-2
                 bg-black/15 backdrop-blur-sm flex-wrap"
         >
             {/* Search */}
-            <div className="relative">
+            <div ref={labelRef} className="relative">
                 <Search
                     size={14}
                     className="absolute left-2.5 top-1/2 -translate-y-1/2
@@ -91,7 +106,7 @@ export default function FilterBar({
             </div>
 
             {/* Label filter */}
-            <div className="relative">
+            <div ref={memberRef} className="relative">
                 <button
                     onClick={() => {
                         setShowLabelDropdown((v) => !v);
