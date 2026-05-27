@@ -1,36 +1,31 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     ChevronLeft,
+    Archive,
     Palette,
     UserPlus,
-    Trash2,
     X,
     Sun,
     Moon,
 } from "lucide-react";
 import Avatar from "../common/Avatar.jsx";
+import ArchivePanel from "./ArchivePanel.jsx";
 import BoardBgPicker from "./BoardBgPicker.jsx";
-import ConfirmDialog from "../common/ConfirmDialog.jsx";
 import { useCurrentBoardStore } from "../../store/currentBoardStore.js";
-import { useBoardStore } from "../../store/boardStore.js";
 import * as api from "../../services/api.js";
 import toast from "react-hot-toast";
 
 export default function BoardHeader({ board, members, theme, onToggleTheme }) {
     const navigate = useNavigate();
+    const [showArchive, setShowArchive] = useState(false);
     const [showBgPicker, setShowBgPicker] = useState(false);
     const [showMemberPicker, setShowMemberPicker] = useState(false);
     const [allMembers, setAllMembers] = useState([]);
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [addingMemberId, setAddingMemberId] = useState(null);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const memberPickerRef = useRef(null);
 
     const addBoardMember = useCurrentBoardStore((s) => s.addBoardMember);
-    const removeBoard = useBoardStore((s) => s.removeBoard);
 
     const availableMembers = useMemo(() => {
         const currentIds = new Set((members || []).map((m) => m.id));
@@ -72,32 +67,6 @@ export default function BoardHeader({ board, members, theme, onToggleTheme }) {
             setAddingMemberId(null);
         }
     };
-
-    const handleDeleteBoard = async () => {
-        if (!board?.id) return;
-        setIsDeleting(true);
-        try {
-            await api.deleteBoard(board.id);
-            removeBoard(board.id);
-            toast.success("Board deleted");
-            navigate("/");
-        } catch {
-            toast.error("Failed to delete board");
-        } finally {
-            setIsDeleting(false);
-            setShowDeleteConfirm(false);
-        }
-    };
-
-    useEffect(() => {
-        if (!showMemberPicker) return;
-        const handler = (e) => {
-            if (memberPickerRef.current?.contains(e.target)) return;
-            setShowMemberPicker(false);
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, [showMemberPicker]);
 
     return (
         <>
@@ -167,7 +136,7 @@ export default function BoardHeader({ board, members, theme, onToggleTheme }) {
                 </button>
 
                 {/* Add member */}
-                <div ref={memberPickerRef} className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0">
                     <button
                         onClick={handleOpenPicker}
                         className="p-1.5 rounded-lg transition-colors"
@@ -269,15 +238,15 @@ export default function BoardHeader({ board, members, theme, onToggleTheme }) {
                     <span className="hidden sm:inline">Background</span>
                 </button>
 
-                {/* Delete board */}
+                {/* Archive */}
                 <button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => setShowArchive(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5
                      rounded-lg text-xs font-medium transition-colors flex-shrink-0"
                     style={{ backgroundColor: "var(--ui-surface-strong)" }}
                 >
-                    <Trash2 size={14} />
-                    <span className="hidden sm:inline">Delete</span>
+                    <Archive size={14} />
+                    <span className="hidden sm:inline">Archive</span>
                 </button>
             </header>
 
@@ -289,15 +258,12 @@ export default function BoardHeader({ board, members, theme, onToggleTheme }) {
                 />
             )}
 
-            <ConfirmDialog
-                isOpen={showDeleteConfirm}
-                title="Delete board permanently?"
-                message={`This will permanently delete "${board?.title}" and all its lists and cards.`}
-                confirmText="Delete"
-                onConfirm={handleDeleteBoard}
-                onCancel={() => setShowDeleteConfirm(false)}
-                isLoading={isDeleting}
-            />
+            {showArchive && (
+                <ArchivePanel
+                    boardId={board?.id}
+                    onClose={() => setShowArchive(false)}
+                />
+            )}
         </>
     );
 }
